@@ -149,6 +149,28 @@ def test_upload_analysis_queries_range_reanalysis_restart_and_delete(api_environ
         assert restarted_client.get(f"/api/jobs/{new_job_id}").json()["source_job_id"] == job_id
 
 
+def test_no_detection_job_completes_with_empty_events(api_environment: Path, tmp_path: Path) -> None:
+    sample = make_video(tmp_path / "quiet.mp4", frame_count=3)
+    with TestClient(app) as client:
+        get_runtime().worker.detector_factory = lambda _options: MockBirdDetector()
+        accepted = upload(client, sample, "quiet.mp4")
+        assert accepted.status_code == 202
+        job_id = accepted.json()["job_id"]
+
+        completed = wait_for_state(client, job_id, "completed")
+        assert completed["detection_count"] == 0
+        assert completed["event_count"] == 0
+        assert client.get(f"/api/jobs/{job_id}/events").json()["items"] == []
+
+        detections = client.get(
+            f"/api/jobs/{job_id}/detections",
+            params={"from_seconds": 0, "to_seconds": completed["video"]["duration_seconds"]},
+        )
+        assert detections.status_code == 200
+        assert detections.json()["frames"]
+        assert all(frame["detections"] == [] for frame in detections.json()["frames"])
+
+
 def test_upload_rejects_extension_size_and_cleans_staging(api_environment: Path, tmp_path: Path) -> None:
     sample = make_video(tmp_path / "sample.mp4")
     with TestClient(app) as client:

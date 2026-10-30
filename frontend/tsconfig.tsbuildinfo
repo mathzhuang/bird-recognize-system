@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/ui.test.tsx","./src/ui.ts","./src/vite-env.d.ts","./src/api/client.test.ts","./src/api/client.ts","./src/api/schema.d.ts","./src/components/detectionoverlay.tsx","./src/components/eventtimeline.tsx","./src/components/joblist.tsx"],"version":"5.7.3"}

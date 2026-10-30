@@ -1,0 +1,49 @@
+{
+  "video": "D:\\code\\bird recognize\\bird-data\\samples\\cathedral-hawk-fledges.mp4",
+  "video_duration_seconds": 65.48,
+  "video_resolution": [
+    640,
+    360
+  ],
+  "sample_interval_seconds": 0.4,
+  "target_sampling_rate_fps": 2.5,
+  "measured_sampling_rate_fps": 2.5045815516188146,
+  "device": "cpu",
+  "processing_seconds": 51.662093399994774,
+  "model_load_seconds": 22.05847929999436,
+  "inference_processing_seconds": 29.591543099937553,
+  "first_sample_seconds": 8.695778399996925,
+  "steady_sample_processing_seconds": 20.895764699940628,
+  "steady_samples_per_second": 7.800623826916616,
+  "steady_video_seconds_per_processing_second": 3.1202495307666465,
+  "video_seconds_per_processing_second": 1.2674670283493898,
+  "peak_memory_mb": 396.76171875,
+  "sampled_frames": 164,
+  "detection_frames": 53,
+  "detection_count": 53,
+  "error_count": 0,
+  "errors": [],
+  "model": {
+    "model_id": "ultralytics-yolo11n-coco",
+    "model_name": "Ultralytics YOLO11n COCO",
+    "model_version": "YOLO11n / ultralytics 8.4.193",
+    "weights_source": "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt",
+    "weights_path": "D:\\code\\bird recognize\\backend\\models\\yolo11n.pt",
+    "weights_sha256": "0ebbc80d4a7680d14987a577cd21342b65ecfd94632bd9a8da63ae6417644ee1",
+    "license": "Ultralytics identifies its code/models as AGPL-3.0 or Enterprise; see the benchmark report. The weight artifact has no separately verified license metadata.",
+    "training_data": "COCO 2017 detection labels (bird class)",
+    "device": "cpu",
+    "inference_config": {
+      "sample_interval_seconds": 0.4,
+      "input_size": 640,
+      "confidence_threshold": 0.25,
+      "nms_iou_threshold": 0.45,
+      "class_names": [
+        "bird"
+      ],
+      "tracking_enabled": false,
+      "device": "cpu",
+      "weights_path": null
+    }
+  }
+}
