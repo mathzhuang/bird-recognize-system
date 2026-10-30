@@ -1,0 +1,659 @@
+openapi: 3.1.0
+info:
+  title: Local Bird Video Analyzer API
+  version: 0.1.0
+  description: >-
+    Local-only API contract for asynchronous offline bird detection. Media times
+    are seconds from the first displayed frame; see CONTRACTS.md for normative
+    timestamp, coordinate, storage, and lifecycle semantics.
+servers:
+  - url: http://127.0.0.1:8000
+    description: Local development service
+tags:
+  - name: system
+  - name: videos
+  - name: jobs
+paths:
+  /api/health:
+    get:
+      tags: [system]
+      operationId: getHealth
+      summary: Check that the local API is available
+      responses:
+        '200':
+          description: Service is ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /api/videos:
+    post:
+      tags: [videos]
+      operationId: uploadVideo
+      summary: Store a local video and queue a detection job
+      description: >-
+        Accepts one locally stored video. The backend probes file contents and
+        queues the job before returning. Extension allowlist and maximum size
+        are local configuration; the multipart MIME type is not trusted.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Video file; configured supported extensions include mp4, mov, m4v, mkv, and webm.
+      responses:
+        '202':
+          description: Video was stored and the new job is queued.
+          headers:
+            Location:
+              description: URL of the created job resource.
+              schema:
+                type: string
+                example: /api/jobs/01JABCDEF0123456789ABCDEFG
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '507':
+          $ref: '#/components/responses/InsufficientStorage'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/jobs:
+    get:
+      tags: [jobs]
+      operationId: listJobs
+      summary: List locally stored jobs
+      parameters:
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/JobState'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Opaque cursor from a previous page; bound to the state filter and sort order.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: A page ordered by created_at descending.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/jobs/{job_id}:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    get:
+      tags: [jobs]
+      operationId: getJob
+      summary: Read a job and its video metadata
+      responses:
+        '200':
+          description: Current job state and summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [jobs]
+      operationId: deleteJob
+      summary: Cancel active work and remove one job and its local files
+      description: Waits until the worker no longer uses the job's files, then removes its data and metadata.
+      responses:
+        '204':
+          description: Job and associated local data were deleted; response has no body.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/jobs/{job_id}/progress:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    get:
+      tags: [jobs]
+      operationId: streamJobProgress
+      summary: Stream task progress with server-sent events
+      description: >-
+        Sends an initial snapshot and then named progress events. A terminal
+        progress event closes the stream. Reconnect with Last-Event-ID when
+        convenient; every reconnect starts with an authoritative snapshot and
+        does not promise durable replay.
+      parameters:
+        - name: Last-Event-ID
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Optional job-local event sequence observed by the client.
+      responses:
+        '200':
+          description: UTF-8 server-sent event stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              examples:
+                progress:
+                  value: |-
+                    id: 12
+                    event: progress
+                    data: {"job_id":"01JABCDEF0123456789ABCDEFG","state":"running","processed_seconds":24.5,"duration_seconds":120.0,"processed_frames":60,"total_frames":null,"updated_at":"2026-10-30T09:00:00Z"}
+
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/jobs/{job_id}/events:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    get:
+      tags: [jobs]
+      operationId: listEvents
+      summary: List bird appearance intervals
+      description: Events committed so far may be read while analysis is running.
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Opaque cursor bound to job and event ordering.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+      responses:
+        '200':
+          description: Events ordered by start_seconds then event_id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/jobs/{job_id}/detections:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    get:
+      tags: [jobs]
+      operationId: listDetections
+      summary: Query sampled detection frames in a bounded video-time range
+      description: >-
+        Returns timestamps in [from_seconds, to_seconds). The interval is at
+        most 60 seconds and the response page at most 1,000 frames. Use
+        successive time ranges for longer videos. Cursors are bound to the job,
+        range, and ordering.
+      parameters:
+        - name: from_seconds
+          in: query
+          required: true
+          description: Inclusive start on the video's presentation timeline.
+          schema:
+            type: number
+            minimum: 0
+        - name: to_seconds
+          in: query
+          required: true
+          description: Exclusive end on the video's presentation timeline; greater than from_seconds and no later than duration_seconds.
+          schema:
+            type: number
+            exclusiveMinimum: 0
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 500
+      responses:
+        '200':
+          description: A bounded page of sampled frames ordered by timestamp.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetectionPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/ResultsNotReady'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/jobs/{job_id}/video:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    get:
+      tags: [jobs]
+      operationId: getJobVideo
+      summary: Stream a locally stored video with byte range support
+      description: Supports a single open-ended, closed, or suffix byte range. Multiple ranges are not supported.
+      parameters:
+        - name: Range
+          in: header
+          required: false
+          schema:
+            type: string
+            pattern: '^bytes=(?:[0-9]+-[0-9]*|-[0-9]+)$'
+          description: HTTP byte offsets for seeking; these are not video timeline seconds.
+      responses:
+        '200':
+          description: Full video body when Range is absent.
+          headers:
+            Accept-Ranges:
+              schema: { type: string, example: bytes }
+            Content-Length:
+              schema: { type: integer }
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+            video/quicktime:
+              schema:
+                type: string
+                format: binary
+            video/x-matroska:
+              schema:
+                type: string
+                format: binary
+            video/webm:
+              schema:
+                type: string
+                format: binary
+        '206':
+          description: Requested partial video body.
+          headers:
+            Accept-Ranges:
+              schema: { type: string, example: bytes }
+            Content-Range:
+              required: true
+              schema:
+                type: string
+                example: bytes 0-1023/4096
+            Content-Length:
+              schema: { type: integer }
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+            video/quicktime:
+              schema:
+                type: string
+                format: binary
+            video/x-matroska:
+              schema:
+                type: string
+                format: binary
+            video/webm:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '416':
+          description: Invalid, multiple, or unsatisfiable range.
+          headers:
+            Content-Range:
+              required: true
+              schema:
+                type: string
+                example: bytes */4096
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/jobs/{job_id}/reanalyze:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    post:
+      tags: [jobs]
+      operationId: reanalyzeJob
+      summary: Queue a fresh analysis run for a job's source video
+      description: Creates a new job ID and preserves the original job and results.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReanalysisRequest'
+      responses:
+        '202':
+          description: A new job was queued from the source video.
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '507':
+          $ref: '#/components/responses/InsufficientStorage'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  parameters:
+    JobId:
+      name: job_id
+      in: path
+      required: true
+      description: Opaque local job identifier.
+      schema:
+        type: string
+        minLength: 1
+  responses:
+    BadRequest:
+      description: Invalid request, time range, filter, or cursor.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    PayloadTooLarge:
+      description: Upload exceeds the configured local size limit.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    UnsupportedMediaType:
+      description: Unsupported or invalid video format.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    NotFound:
+      description: Job does not exist.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Conflict:
+      description: Job state does not permit this operation or source video is unavailable.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    ResultsNotReady:
+      description: Detection results are unavailable until analysis starts.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    InsufficientStorage:
+      description: Local storage has insufficient space for the requested operation.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    InternalError:
+      description: Unexpected local API, database, or file operation failure.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, service, version, mode]
+      properties:
+        status: { type: string, const: ok }
+        service: { type: string, example: bird-video-analyzer }
+        version: { type: string, example: 0.1.0 }
+        mode: { type: string, const: local }
+    JobState:
+      type: string
+      enum: [queued, probing, running, completed, failed, cancelled]
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          $ref: '#/components/schemas/ApiError'
+    ApiError:
+      type: object
+      required: [code, message, details, request_id]
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable error identifier.
+          example: invalid_time_range
+        message:
+          type: string
+          description: Human-readable localizable error summary.
+          example: to_seconds must be greater than from_seconds.
+        details:
+          type: [object, 'null']
+          additionalProperties: true
+          description: Optional field-level information; null when absent.
+        request_id:
+          type: string
+          description: Identifier for correlating local logs.
+    VideoMetadata:
+      type: object
+      required: [duration_seconds, coded_width, coded_height, display_width, display_height, rotation_degrees, average_frame_rate, variable_frame_rate, video_codec, has_audio]
+      properties:
+        duration_seconds:
+          type: number
+          minimum: 0
+          description: Duration on the normalized presentation timeline.
+        coded_width: { type: integer, minimum: 1 }
+        coded_height: { type: integer, minimum: 1 }
+        display_width: { type: integer, minimum: 1, description: Width after rotation metadata is applied. }
+        display_height: { type: integer, minimum: 1, description: Height after rotation metadata is applied. }
+        rotation_degrees:
+          type: number
+          description: Clockwise rotation applied to produce displayed pixels, normalized to [-360, 360].
+        average_frame_rate:
+          type: [number, 'null']
+          minimum: 0
+        variable_frame_rate:
+          type: [boolean, 'null']
+        video_codec:
+          type: [string, 'null']
+        has_audio: { type: boolean }
+    AnalysisProgress:
+      type: object
+      required: [processed_seconds, duration_seconds, processed_frames, total_frames]
+      properties:
+        processed_seconds:
+          type: number
+          minimum: 0
+          description: Furthest processed position on the video's presentation timeline.
+        duration_seconds:
+          type: [number, 'null']
+          minimum: 0
+        processed_frames:
+          type: integer
+          minimum: 0
+        total_frames:
+          type: [integer, 'null']
+          minimum: 0
+    JobSummary:
+      type: object
+      required: [job_id, source_job_id, file_name, state, created_at, updated_at, finished_at, progress, error]
+      properties:
+        job_id: { type: string }
+        source_job_id: { type: [string, 'null'], description: Non-null for a reanalysis job. }
+        file_name: { type: string }
+        state: { $ref: '#/components/schemas/JobState' }
+        created_at: { type: string, format: date-time, description: UTC wall-clock metadata, not video time. }
+        updated_at: { type: string, format: date-time, description: UTC wall-clock metadata, not video time. }
+        finished_at: { type: [string, 'null'], format: date-time, description: UTC wall-clock metadata, not video time. }
+        progress: { $ref: '#/components/schemas/AnalysisProgress' }
+        error: { oneOf: [{ $ref: '#/components/schemas/ApiError' }, { type: 'null' }] }
+    JobDetail:
+      allOf:
+        - $ref: '#/components/schemas/JobSummary'
+        - type: object
+          required: [video, video_url, analysis_options, detection_count, event_count]
+          properties:
+            video:
+              oneOf:
+                - $ref: '#/components/schemas/VideoMetadata'
+                - type: 'null'
+            video_url:
+              type: [string, 'null']
+              format: uri-reference
+              description: Relative URL for local HTML video playback; null if source media is unavailable.
+            analysis_options: { $ref: '#/components/schemas/AnalysisOptions' }
+            detection_count: { type: integer, minimum: 0 }
+            event_count: { type: integer, minimum: 0 }
+    JobPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/JobSummary' }
+        next_cursor: { type: [string, 'null'] }
+    AnalysisOptions:
+      type: object
+      required: [sample_interval_seconds, confidence_threshold]
+      properties:
+        sample_interval_seconds:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 5
+          default: 0.4
+        confidence_threshold:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.25
+    ReanalysisRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        options: { $ref: '#/components/schemas/AnalysisOverrides' }
+    AnalysisOverrides:
+      type: object
+      additionalProperties: false
+      properties:
+        sample_interval_seconds:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 5
+          description: Omitted value uses the server default.
+        confidence_threshold:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Omitted value uses the server default.
+    BirdEvent:
+      type: object
+      required: [event_id, start_seconds, end_seconds, track_ids, max_confidence, detection_count]
+      properties:
+        event_id: { type: string }
+        start_seconds:
+          type: number
+          minimum: 0
+          description: Inclusive start on video presentation timeline.
+        end_seconds:
+          type: number
+          exclusiveMinimum: 0
+          description: Exclusive end on video presentation timeline.
+        track_ids:
+          type: array
+          uniqueItems: true
+          items: { type: integer, minimum: 0 }
+        max_confidence: { type: number, minimum: 0, maximum: 1 }
+        detection_count: { type: integer, minimum: 1 }
+    EventPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/BirdEvent' }
+        next_cursor: { type: [string, 'null'] }
+    Detection:
+      type: object
+      required: [track_id, confidence, bbox]
+      properties:
+        track_id: { type: [integer, 'null'], minimum: 0 }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        bbox:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items:
+            type: number
+            minimum: 0
+            maximum: 1
+          description: '[x1, y1, x2, y2], top-left origin, normalized to post-rotation display pixels; x1<x2 and y1<y2.'
+    DetectionFrame:
+      type: object
+      required: [timestamp, detections]
+      properties:
+        timestamp:
+          type: number
+          minimum: 0
+          description: Sampled frame presentation timestamp in seconds relative to the first displayed frame.
+        detections:
+          type: array
+          items: { $ref: '#/components/schemas/Detection' }
+    DetectionPage:
+      type: object
+      required: [from_seconds, to_seconds, frames, next_cursor]
+      properties:
+        from_seconds: { type: number, minimum: 0 }
+        to_seconds: { type: number, exclusiveMinimum: 0 }
+        frames:
+          type: array
+          maxItems: 1000
+          items: { $ref: '#/components/schemas/DetectionFrame' }
+        next_cursor: { type: [string, 'null'] }
+    ProgressEvent:
+      allOf:
+        - $ref: '#/components/schemas/AnalysisProgress'
+        - type: object
+          required: [job_id, state, updated_at]
+          properties:
+            job_id: { type: string }
+            state: { $ref: '#/components/schemas/JobState' }
+            updated_at: { type: string, format: date-time, description: UTC wall-clock metadata, not video time. }
+            error: { oneOf: [{ $ref: '#/components/schemas/ApiError' }, { type: 'null' }] }

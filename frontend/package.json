@@ -1,0 +1,39 @@
+{
+  "name": "bird-video-analyzer-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:mock": "vite --mode mock",
+    "lint": "eslint . --max-warnings=0",
+    "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "test:browser": "playwright test",
+    "test:browser:real": "playwright test --config playwright.real.config.ts",
+    "preview": "vite preview",
+    "api:types": "openapi-typescript ../docs/openapi.yaml -o src/api/schema.d.ts"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@eslint/js": "^10.0.1",
+    "@testing-library/react": "^16.2.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^10.13.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^16.5.0",
+    "jsdom": "^25.0.1",
+    "openapi-typescript": "^7.6.1",
+    "typescript": "~5.7.3",
+    "typescript-eslint": "^8.72.1",
+    "vite": "^6.1.0",
+    "vitest": "^5.0.5"
+  }
+}

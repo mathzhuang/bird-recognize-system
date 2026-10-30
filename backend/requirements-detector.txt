@@ -1,0 +1,2 @@
+# Optional local detector runtime. The base install remains usable in mock mode.
+ultralytics==8.4.193
