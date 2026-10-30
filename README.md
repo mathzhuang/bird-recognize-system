@@ -18,6 +18,22 @@
 .\scripts\start.ps1
 ```
 
+### 快速试跑真实鸟视频
+
+新机器首次运行时，在仓库根目录 PowerShell 执行：
+
+```powershell
+.\scripts\setup.ps1 -WithDetector
+.\scripts\fetch-sample.ps1
+.\scripts\start.ps1
+```
+
+打开启动脚本打印的前端地址，在“Choose video”中选择 `bird-data\samples\cathedral-hawk-fledges.mp4`，再点“Start analysis”。这是约 65 秒的鹰巢视频；本机 CPU 实测模型分析约 14 秒，完成后可在左侧任务列表重新打开，视频画面会显示检测框，下面会显示事件和时间轴片段。本次实测生成 53 个检测框和 13 个事件；实际结果与速度会随硬件和模型配置变化。
+
+想更快试一个短片时，可选择 `bird-data\samples\purple-swamphen-bath.mp4`（11 秒，约 1.1 MB）。检测结束后看任务状态、鸟框和事件列表；不同视频可能没有检测结果，这本身也是有效的空结果测试。
+
+鹰视频由 Flickr 原作者 Jeremy Seto 发布，授权为 CC BY-NC-SA 2.0。短片《Purple Swamphen taking a bath》来自 Flickr 用户 Naveen Reddy，授权为 CC BY-NC-ND 2.0；请保留原文件，不要剪辑或改编。脚本把文件保存在本机 `bird-data/samples/`，不会上传到外部服务。
+
 运行真实视频浏览器验收前先准备本机验证视频：
 
 ```powershell

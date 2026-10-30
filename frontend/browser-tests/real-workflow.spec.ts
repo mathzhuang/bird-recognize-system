@@ -41,7 +41,7 @@ function fixtureJob(jobId: string, fileName: string, state: "completed" | "faile
 }
 
 async function mockJobApi(page: Page, job: JobDetail) {
-  await page.route("**/api/**", async (route) => {
+  await page.route((url) => url.pathname.startsWith("/api/"), async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/health") {
       await route.fulfill({ json: { status: "ok", service: "bird-video-analyzer", version: "0.1.0", mode: "local" } });
