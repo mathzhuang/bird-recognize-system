@@ -1,61 +1,54 @@
-# Local Development
+# Local Development Documentation
 
-## Requirements
+本文件是开发文档入口。完整的当前架构、契约、数据布局、启动方式、测试矩阵、风险和交接检查表见 [HANDOFF.md](HANDOFF.md)；按提交和协作窗口整理的历史见 [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md)。
 
-- Python 3.11 or newer (the workspace was checked with Python 3.13).
-- Node.js 20 or newer (the workspace was checked with Node 24).
-- PowerShell on Windows, or equivalent shell commands on another OS.
+## 权威文件
 
-The backend uses PyAV for local video probing and decoding; no separately installed FFmpeg executable or database server is needed. The default backend detector is local YOLO11n and requires separately installed `ultralytics` plus local weights. Use `scripts/start.ps1 -Mock` for a detector-free API smoke run. Do not commit model weights or source videos.
+- 产品范围和暂不包含内容：[PLAN.md](../PLAN.md)
+- 跨模块语义：[CONTRACTS.md](../CONTRACTS.md)
+- 机器可读 API：[openapi.yaml](openapi.yaml)
+- 快速启动和样例：[README.md](../README.md)
+- 当前交接：[HANDOFF.md](HANDOFF.md)
+- 开发历史：[DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md)
+- 只追加协作记录：[AI_WORK_LOG.md](AI_WORK_LOG.md)
 
-## Install
-
-From the repository root, install the base environment:
+## 日常命令
 
 ```powershell
+# 安装基础环境
 .\scripts\setup.ps1
-```
 
-To install the optional local YOLO runtime and download the pinned weights:
-
-```powershell
+# 安装真实 YOLO、锁定依赖并准备权重
 .\scripts\setup.ps1 -WithDetector
-```
 
-If using a shell with a POSIX-style virtual environment, replace the Python path with `backend/.venv/bin/python` and invoke `npm` normally.
+# 下载并校验两个本机样例
+.\scripts\fetch-sample.ps1
 
-## Start
-
-From the repository root:
-
-```powershell
+# 启动真实模式；启动脚本会输出实际 URL
 .\scripts\start.ps1
-```
 
-Open the address printed by the script, normally `http://127.0.0.1:5173`. It selects free loopback ports and keeps data separate when port 8000 is occupied. Stop its processes with `scripts/stop.ps1`.
+# 没有模型时只看 UI mock
+.\scripts\start.ps1 -Mock
 
-## Frontend Mock
-
-To try the frontend without using real detector results:
-
-```powershell
-cd frontend
-npm.cmd run dev:mock -- --host 127.0.0.1 --port 5173
-```
-
-Open `http://127.0.0.1:5173` and select the preloaded `demo-bird-video.webm` task to see fixed sample detections and two event intervals over a 3-second demo timeline; event seeking works without a source video. You can also upload a locally stored, playable video; the mock keeps it in the browser, does not upload it or contact a remote service, and applies the same sample results. Use a 3-second clip when checking player and timeline alignment. Mock tasks live only for the lifetime of the page.
-
-The backend mock detector produces no detections unless test code supplies deterministic sample detections. Use `scripts/start.ps1 -Mock` for the synthetic UI preview, or set `BIRD_DETECTOR=mock` to check empty results through the real API. The default launcher selects local YOLO; missing weights are reported as a task error.
-
-## Checks
-
-```powershell
-backend/.venv/Scripts/python -m pytest
+# 检查和测试
+backend/.venv/Scripts/python.exe -m ruff check backend scripts
+backend/.venv/Scripts/python.exe -m pytest -q
 cd frontend
 npm.cmd run lint
 npm.cmd run build
-npm.cmd test
+npm.cmd test -- --reporter=dot
 npm.cmd run test:browser
 ```
 
-The shared contract is `CONTRACTS.md` and `docs/openapi.yaml`. After editing the OpenAPI file, regenerate frontend declarations with `npm.cmd run api:types` in `frontend/`, review `src/api/schema.d.ts`, then run the frontend build.
+PowerShell 执行策略受限时，在命令前使用 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File`。服务端和前端只监听 loopback；实际端口和数据目录以 `.local-run/services.json` 为准。
+
+## 修改契约时
+
+编辑 `docs/openapi.yaml` 后，从 `frontend/` 执行：
+
+```powershell
+npm.cmd run api:types
+npm.cmd run build
+```
+
+同时检查 `CONTRACTS.md`、后端 Pydantic/API 序列化和前端 client，不要在单个模块中发明不同的时间或 bbox 语义。

@@ -349,3 +349,55 @@
 - 下一位需要先做：如用户要重跑，直接刷新 `http://127.0.0.1:5174` 并使用任务列表现有结果，或再次上传任一 `bird-data/samples/` 文件。
 - 不要重复做：不要删除任务 `3951e92145004ed48b3f21cd364fabe6` 或鹰视频任务 `c577ae48d2964f7bbf42711f88ce188c`；这两条供当前用户查看。
 - 仍需确认：按 `[006]` 记录处理授权与真实模型评估限制。
+
+## [008] [2026-10-31 Asia/Singapore] [全仓库开发日志与交接文档] [已完成]
+
+### 任务
+- 本窗口负责：阅读整个仓库，整理完整开发日志和维护者交接文档，并用当前代码和命令复核文档中的运行/测试事实。
+- 读取的上下文：`PLAN.md`、`CONTRACTS.md`、`docs/openapi.yaml`、`docs/AI_WORK_LOG.md`、`README.md`、原 `docs/DEVELOPMENT.md`、全部后端/前端/脚本源码、测试、锁定依赖、Git 提交和当前服务状态。
+- 接手时状态：HEAD 为 `bc15a9e`，提交链为 `c10cb40 -> 05394f0 -> bc15a9e`；本次复核开始时工作树无修改。当前本机真实服务由 `.local-run/services.json` 记录，API 8001、前端 5174、detector 为 ultralytics。
+- 本次采用的假设：交接文档按代码当前行为和可复现命令编写；早期窗口缺失的作者/历史不补造；单个视频检测输出不代表模型精度。
+
+### 实际修改
+- `docs/HANDOFF.md`：新增当前系统状态、真实/mock 启动、环境变量、架构、数据布局、共享契约、模块地图、detector 限制、测试矩阵、风险、下一步和新窗口检查表。
+- `docs/DEVELOPMENT_LOG.md`：新增 Git 提交历史、AI 工作窗口摘要、技术决策、验证结果、未解决问题和建议执行顺序。
+- `docs/DEVELOPMENT.md`：改为开发文档入口，链接权威文件并保留日常安装/启动/检查/契约生成命令。
+- `docs/AI_WORK_LOG.md`：追加本条 `[008]` 记录。
+
+### 关键决策或契约变化
+- 没有修改 `CONTRACTS.md` 或 `docs/openapi.yaml`；文档明确它们仍是跨模块契约来源。
+- 文档明确区分 frontend synthetic mock、backend mock detector 和真实 Ultralytics 结果，避免把 mock 当成模型验收。
+- 文档明确记录 Git 中已跟踪的模型、视频、数据库、构建和截图遗留项；本窗口没有删除或回滚其他窗口提交的文件。
+
+### 验证证据
+- 命令：`backend/.venv/Scripts/python.exe -m ruff check backend scripts`
+  - 结果：通过，All checks passed。
+- 命令：`backend/.venv/Scripts/python.exe -m pytest -q`
+  - 结果：通过，28 passed；1 条 Starlette/AnyIO 弃用警告。
+- 命令：`npm.cmd run lint`（`frontend/`）
+  - 结果：通过，ESLint 零 warning。
+- 命令：`npm.cmd run build`（`frontend/`）
+  - 结果：通过，TypeScript 和 Vite 构建成功，34 个模块。
+- 命令：`npm.cmd test -- --reporter=dot`（`frontend/`）
+  - 结果：通过，2 个测试文件、7 项测试通过。
+- 命令：设置 `BIRD_E2E_FRONTEND_PORT=5182` 后运行 `npm.cmd run test:browser`
+  - 结果：通过，2 项 mock 浏览器测试通过。
+- 命令：设置 `BIRD_TEST_VIDEO` 为 `purple-swamphen-bath.mp4`、`BIRD_E2E_FRONTEND_PORT=5181`、`VITE_API_TARGET=http://127.0.0.1:8001` 后运行 `npm.cmd run test:browser:real`
+  - 结果：通过，3 项真实浏览器测试通过，包含短样例上传/播放/画框/时间轴/刷新、空检测 fixture 和失败 fixture。
+- 命令：`git diff --check`
+  - 结果：通过；文档和现有修改没有空白错误。
+- 命令：`GET http://127.0.0.1:8001/api/health` 和前端根 URL检查
+  - 结果：API 返回 `status=ok`，前端 HTTP 200；服务保持运行供维护者查看。
+- 命令：`git check-ignore -v --no-index` 检查本地视频、权重、数据库、dist 和 Playwright 输出；`git status --short --branch`
+  - 结果：新规则覆盖未来本地产物；已跟踪产物历史遗留仍存在。当前工作树修改为三份开发文档，其他 AI 的已跟踪资产没有被删除。
+
+### 已知问题
+- 问题：文档中记录的性能、真实样例和许可证事实来自既有日志及本次代码/命令复核；没有重新运行完整 benchmark，也没有建立人工标注评估集。
+- 严重程度：一般；交接文档已明确证据范围和限制。
+- 问题：Git 已跟踪模型、样例视频、数据库、构建输出和截图；本窗口只记录并提醒，没有清理历史。
+- 严重程度：一般；需要维护者安排专门清理提交。
+
+### 交接给下一位 AI
+- 下一位需要先做：先阅读 `docs/HANDOFF.md`，再按其检查表运行命令；若处理发布问题，先清理 Git 产物和核查模型/样例许可证。
+- 不要重复做：不要把 `[008]` 的文档摘要当作新的产品契约，也不要把历史样例结果当作准确率指标。
+- 仍需确认：真实多场景标注评估、GPU/其他浏览器兼容性、干净机器安装、闭源商业许可证和 Git 历史清理方案。
